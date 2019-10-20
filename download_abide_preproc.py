@@ -18,7 +18,7 @@ Usage:
 
 
 # Main collect and download function
-def collect_and_download(derivative, pipeline, strategy, out_dir, less_than, greater_than, site, sex, diagnosis):
+def collect_and_download(derivative, pipeline, strategy, out_dir, less_than, greater_than, site, sex, diagnosis, type):
     """
 
     Function to collect and download images from the ABIDE preprocessed
@@ -45,6 +45,8 @@ def collect_and_download(derivative, pipeline, strategy, out_dir, less_than, gre
     diagnosis : string
         'asd', 'tdc', or 'both' corresponding to the diagnosis of the
         participants for whom data should be downloaded
+    type : string
+        'functional' or 'structural'
 
     Returns
     -------
@@ -70,6 +72,7 @@ def collect_and_download(derivative, pipeline, strategy, out_dir, less_than, gre
 
     # Init variables
     mean_fd_thresh = 0.2
+    # functional
     s3_prefix = 'https://s3.amazonaws.com/fcp-indi/data/Projects/'\
                 'ABIDE_Initiative'
     s3_pheno_path = '/'.join([s3_prefix, 'Phenotypic_V1_0b_preprocessed1.csv'])
@@ -150,13 +153,25 @@ def collect_and_download(derivative, pipeline, strategy, out_dir, less_than, gre
         if site is not None and site.lower() != row_site.lower():
             continue
         # Test age range
-        if greater_than < row_age < less_than:
+        if not greater_than < row_age < less_than:
+            continue
+
+        # functional
+        if type == 'functional':
             filename = row_file_id + '_' + derivative + extension
             s3_path = '/'.join([s3_prefix, 'Outputs', pipeline, strategy, derivative, filename])
             print('Adding {0} to download queue...'.format(s3_path))
             s3_paths.append(s3_path)
-        else:
-            continue
+        # structural
+        elif type == 'structural':
+            filename = row_file_id
+            # for freesurfer
+            sub_files = ['lh.aparc.a2009s.stats', 'rh.aparc.a2009s.stats']
+            for file in sub_files:
+                s3_path = '/'.join([s3_prefix, 'Outputs', 'freesurfer', '5.1', filename, 'stats', file])
+                print('Adding {0} to download queue...'.format(s3_path))
+                s3_paths.append(s3_path)
+
 
     # And download the items
     total_num_files = len(s3_paths)
@@ -192,6 +207,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
 
     # Required arguments
+    parser.add_argument('-type', '--type', nargs=1, required=False, type=str, default='functional',
+                        help='functional, structural')
     parser.add_argument('-a', '--asd', required=False, default=False, action='store_true',
                         help='Only download data for participants with ASD.'
                              ' Specifying neither or both -a and -c will download data from all participants.')
@@ -275,6 +292,8 @@ if __name__ == '__main__':
         desired_sex = None
         print('No sex specified, using all sexes...')
 
+    desired_type = args.type[0]
+
     # Call the collect and download routine
     collect_and_download(desired_derivative, desired_pipeline, desired_strategy, download_data_dir, desired_age_max,
-                         desired_age_min, desired_site, desired_sex, desired_diagnosis)
+                         desired_age_min, desired_site, desired_sex, desired_diagnosis, desired_type)
